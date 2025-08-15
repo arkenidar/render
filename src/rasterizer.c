@@ -62,6 +62,10 @@ static void transform_point(const mat4 *m, float x, float y, float z, float *out
     *outx = rx; *outy = ry; *outz = rz; *outw = rw;
 }
 
+// Forward declarations for functions defined later
+static mat4 mat4_lookat(const float eye[3], const float center[3], const float up[3]);
+static void camera_autofit_model(void);
+
 // Placeholder mesh data (single triangle)
 typedef struct
 {
@@ -258,6 +262,15 @@ static int g_model_index = -1;
 // Global pointer used by compatibility shims to draw into the active surface
 SDL_Surface *g_current_surface = NULL;
 
+// Camera state (spherical coordinates around center)
+static float g_cam_yaw = 0.0f;   // around Y axis
+static float g_cam_pitch = 0.0f; // up/down
+static float g_cam_distance = 3.0f; // distance from center
+static float g_cam_center[3] = {0.0f, 0.0f, 0.0f};
+
+// Whether the auto-fit has been computed for the current model
+static int g_cam_autofit_done = 0;
+
 static void free_model(model *m)
 {
     if (!m) return;
@@ -281,6 +294,14 @@ void rasterizer_cycle_model(void)
     const char *path = g_model_paths[g_model_index];
     g_current_model = load_model_obj(path);
     g_model_loaded = 1;
+    // Automatically fit camera to the newly loaded model
+    // (implemented below)
+    {
+        // compute bounds and autofit
+        // defer to helper - call rasterizer_adjust_camera with zero deltas to trigger if needed
+        extern void rasterizer_adjust_camera(float delta_yaw, float delta_pitch, float delta_zoom);
+        rasterizer_adjust_camera(0.0f, 0.0f, 0.0f);
+    }
 }
 
 // Forward declaration for triangle rasterizer
@@ -321,8 +342,21 @@ void rasterizer_render(SDL_Surface *surface)
 
         int w = surface->w;
         int h = surface->h;
-        mat4 model = mat4_identity();
-        mat4 view = mat4_translate(0.0f, 0.0f, -3.0f);
+    mat4 model = mat4_identity();
+        // Ensure camera autofit has been computed for the model
+        if (!g_cam_autofit_done)
+            camera_autofit_model();
+
+    // Build view matrix from camera state
+    // Camera transform will be computed from globals set by rasterizer_adjust_camera/auto-fit
+    // compute camera position from spherical coordinates
+    float camx = g_cam_center[0] + g_cam_distance * cosf(g_cam_pitch) * sinf(g_cam_yaw);
+    float camy = g_cam_center[1] + g_cam_distance * sinf(g_cam_pitch);
+    float camz = g_cam_center[2] + g_cam_distance * cosf(g_cam_pitch) * cosf(g_cam_yaw);
+    float eye[3] = { camx, camy, camz };
+    float center[3] = { g_cam_center[0], g_cam_center[1], g_cam_center[2] };
+    float upv[3] = { 0.0f, 1.0f, 0.0f };
+    mat4 view = mat4_lookat(eye, center, upv);
         float aspect = (float)w / (float)h;
         mat4 proj = mat4_perspective(45.0f * (3.14159265f / 180.0f), aspect, 0.1f, 100.0f);
         mat4 mv = mat4_mul(&view, &model);
@@ -362,6 +396,106 @@ void rasterizer_render(SDL_Surface *surface)
     }
 
     SDL_UnlockSurface(surface);
+}
+
+// Build a look-at view matrix (column-major style matching our transform_point)
+static mat4 mat4_lookat(const float eye[3], const float center[3], const float up[3])
+{
+    // compute forward, right, up vectors
+    float fx = center[0] - eye[0];
+    float fy = center[1] - eye[1];
+    float fz = center[2] - eye[2];
+    // normalize f
+    float flen = sqrtf(fx*fx + fy*fy + fz*fz);
+    if (flen == 0.0f) flen = 1.0f;
+    fx /= flen; fy /= flen; fz /= flen;
+
+    // up normalized
+    float ux = up[0], uy = up[1], uz = up[2];
+    float ulen = sqrtf(ux*ux + uy*uy + uz*uz);
+    if (ulen == 0.0f) ulen = 1.0f;
+    ux /= ulen; uy /= ulen; uz /= ulen;
+
+    // s = f x up
+    float sx = fy * uz - fz * uy;
+    float sy = fz * ux - fx * uz;
+    float sz = fx * uy - fy * ux;
+    float slen = sqrtf(sx*sx + sy*sy + sz*sz);
+    if (slen == 0.0f) slen = 1.0f;
+    sx /= slen; sy /= slen; sz /= slen;
+
+    // u' = s x f
+    float ux2 = sy * fz - sz * fy;
+    float uy2 = sz * fx - sx * fz;
+    float uz2 = sx * fy - sy * fx;
+
+    mat4 m; memset(&m, 0, sizeof(m));
+    // first row
+    m.m[0][0] = sx; m.m[0][1] = ux2; m.m[0][2] = -fx; m.m[0][3] = 0.0f;
+    m.m[1][0] = sy; m.m[1][1] = uy2; m.m[1][2] = -fy; m.m[1][3] = 0.0f;
+    m.m[2][0] = sz; m.m[2][1] = uz2; m.m[2][2] = -fz; m.m[2][3] = 0.0f;
+    m.m[3][0] = 0.0f; m.m[3][1] = 0.0f; m.m[3][2] = 0.0f; m.m[3][3] = 1.0f;
+
+    // translate
+    mat4 t = mat4_translate(-eye[0], -eye[1], -eye[2]);
+    return mat4_mul(&m, &t);
+}
+
+// Helper: compute model bounding box in model-space and set camera to fit
+static void camera_autofit_model(void)
+{
+    if (!g_model_loaded || g_current_model.vertex_positions.count == 0)
+        return;
+
+    float minx = FLT_MAX, miny = FLT_MAX, minz = FLT_MAX;
+    float maxx = -FLT_MAX, maxy = -FLT_MAX, maxz = -FLT_MAX;
+    for (int i = 0; i < g_current_model.vertex_positions.count; ++i)
+    {
+        float *p = g_current_model.vertex_positions.array[i].array;
+        if (p[0] < minx) minx = p[0]; if (p[0] > maxx) maxx = p[0];
+        if (p[1] < miny) miny = p[1]; if (p[1] > maxy) maxy = p[1];
+        if (p[2] < minz) minz = p[2]; if (p[2] > maxz) maxz = p[2];
+    }
+    // center
+    g_cam_center[0] = (minx + maxx) * 0.5f;
+    g_cam_center[1] = (miny + maxy) * 0.5f;
+    g_cam_center[2] = (minz + maxz) * 0.5f;
+
+    // find radius of bounding sphere
+    float rx = (maxx - minx) * 0.5f;
+    float ry = (maxy - miny) * 0.5f;
+    float rz = (maxz - minz) * 0.5f;
+    float radius = sqrtf(rx*rx + ry*ry + rz*rz);
+    if (radius <= 0.0f) radius = 1.0f;
+
+    // Fit camera distance using vertical FOV 45deg and horizontal aspect will be handled in render
+    float fov = 45.0f * (3.14159265f / 180.0f);
+    // distance such that radius fits: distance = radius / sin(fov/2)
+    float dist = radius / sinf(fov * 0.5f);
+    // add some padding
+    dist *= 1.4f;
+    g_cam_distance = dist;
+    // reset orientation
+    g_cam_yaw = 0.0f;
+    g_cam_pitch = 0.0f;
+    g_cam_autofit_done = 1;
+}
+
+// Public camera adjust API implementation
+void rasterizer_adjust_camera(float delta_yaw, float delta_pitch, float delta_zoom)
+{
+    // apply deltas
+    g_cam_yaw += delta_yaw;
+    g_cam_pitch += delta_pitch;
+    // clamp pitch to avoid flipping
+    const float max_pitch = 1.4f; // ~80 degrees
+    if (g_cam_pitch > max_pitch) g_cam_pitch = max_pitch;
+    if (g_cam_pitch < -max_pitch) g_cam_pitch = -max_pitch;
+    // zoom
+    g_cam_distance += delta_zoom;
+    if (g_cam_distance < 0.01f) g_cam_distance = 0.01f;
+    // mark autofit as done/overridden
+    g_cam_autofit_done = 1;
 }
 
 // Compute simple per-vertex diffuse intensity (directional light)
