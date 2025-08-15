@@ -262,9 +262,9 @@ static inline float edge_function(float x0, float y0, float x1, float y1, float 
 
 // Model switching
 static const char *g_model_paths[] = {
-    "assets/axes.obj",
-    "assets/cube.obj",
     "assets/head.obj",
+    "assets/cube.obj",
+    "assets/axes.obj",
 };
 static const int g_model_count = sizeof(g_model_paths) / sizeof(g_model_paths[0]);
 static model g_current_model = {0};

@@ -31,6 +31,8 @@ int main(int argc, char *argv[])
         return 1;
     }
 
+    rasterizer_cycle_model();
+
     // Main render loop (placeholder)
     int running = 1;
     SDL_Event event;
@@ -48,8 +50,7 @@ int main(int argc, char *argv[])
             else if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN)
             {
                 // left click cycles models
-                if (event.button.button == SDL_BUTTON_LEFT)
-                    rasterizer_cycle_model();
+                // if (event.button.button == SDL_BUTTON_LEFT) rasterizer_cycle_model();
             }
         }
         // Call rasterizer render function (to be implemented)
