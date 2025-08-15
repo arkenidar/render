@@ -29,3 +29,7 @@ This project is a C99 application using SDL3 (no OpenGL) that implements a CPU-b
 - [ ] Implement rasterizer with z-buffer
 - [ ] Implement Gouraud shading
 - [ ] Add sample mesh
+
+## License
+
+This project and all files in the repository are dedicated to the public domain under CC0 1.0 Universal. See the `LICENSE` file for details.
