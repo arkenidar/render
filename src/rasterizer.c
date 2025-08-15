@@ -13,18 +13,24 @@
 #include "../parse.h"
 
 // Minimal 4x4 matrix helpers for a simple MVP pipeline
-typedef struct { float m[4][4]; } mat4;
+typedef struct
+{
+    float m[4][4];
+} mat4;
 
 static mat4 mat4_identity()
 {
-    mat4 r; memset(&r, 0, sizeof(r));
-    for (int i = 0; i < 4; ++i) r.m[i][i] = 1.0f;
+    mat4 r;
+    memset(&r, 0, sizeof(r));
+    for (int i = 0; i < 4; ++i)
+        r.m[i][i] = 1.0f;
     return r;
 }
 
 static mat4 mat4_mul(const mat4 *a, const mat4 *b)
 {
-    mat4 r; memset(&r, 0, sizeof(r));
+    mat4 r;
+    memset(&r, 0, sizeof(r));
     for (int i = 0; i < 4; ++i)
         for (int j = 0; j < 4; ++j)
             for (int k = 0; k < 4; ++k)
@@ -35,14 +41,17 @@ static mat4 mat4_mul(const mat4 *a, const mat4 *b)
 static mat4 mat4_translate(float x, float y, float z)
 {
     mat4 r = mat4_identity();
-    r.m[0][3] = x; r.m[1][3] = y; r.m[2][3] = z;
+    r.m[0][3] = x;
+    r.m[1][3] = y;
+    r.m[2][3] = z;
     return r;
 }
 
 static mat4 mat4_perspective(float fovy_rad, float aspect, float znear, float zfar)
 {
     float f = 1.0f / tanf(fovy_rad * 0.5f);
-    mat4 r; memset(&r, 0, sizeof(r));
+    mat4 r;
+    memset(&r, 0, sizeof(r));
     r.m[0][0] = f / aspect;
     r.m[1][1] = f;
     r.m[2][2] = (zfar + znear) / (znear - zfar);
@@ -59,7 +68,10 @@ static void transform_point(const mat4 *m, float x, float y, float z, float *out
     float ry = m->m[1][0] * vx + m->m[1][1] * vy + m->m[1][2] * vz + m->m[1][3] * vw;
     float rz = m->m[2][0] * vx + m->m[2][1] * vy + m->m[2][2] * vz + m->m[2][3] * vw;
     float rw = m->m[3][0] * vx + m->m[3][1] * vy + m->m[3][2] * vz + m->m[3][3] * vw;
-    *outx = rx; *outy = ry; *outz = rz; *outw = rw;
+    *outx = rx;
+    *outy = ry;
+    *outz = rz;
+    *outw = rw;
 }
 
 // Forward declarations for functions defined later
@@ -263,8 +275,8 @@ static int g_model_index = -1;
 SDL_Surface *g_current_surface = NULL;
 
 // Camera state (spherical coordinates around center)
-static float g_cam_yaw = 0.0f;   // around Y axis
-static float g_cam_pitch = 0.0f; // up/down
+static float g_cam_yaw = 0.0f;      // around Y axis
+static float g_cam_pitch = 0.0f;    // up/down
 static float g_cam_distance = 3.0f; // distance from center
 static float g_cam_center[3] = {0.0f, 0.0f, 0.0f};
 
@@ -273,13 +285,17 @@ static int g_cam_autofit_done = 0;
 
 static void free_model(model *m)
 {
-    if (!m) return;
+    if (!m)
+        return;
     free(m->vertex_positions.array);
     free(m->vertex_normals.array);
     free(m->mesh.array);
-    m->vertex_positions.array = NULL; m->vertex_positions.count = 0;
-    m->vertex_normals.array = NULL; m->vertex_normals.count = 0;
-    m->mesh.array = NULL; m->mesh.count = 0;
+    m->vertex_positions.array = NULL;
+    m->vertex_positions.count = 0;
+    m->vertex_normals.array = NULL;
+    m->vertex_normals.count = 0;
+    m->mesh.array = NULL;
+    m->mesh.count = 0;
 }
 
 void rasterizer_cycle_model(void)
@@ -330,8 +346,7 @@ void rasterizer_render(SDL_Surface *surface)
             depth_buffer[i] = FLT_MAX;
     }
 
-    // Draw filled triangle with Gouraud shading
-    draw_filled_triangle(surface, &vertices[0], &vertices[1], &vertices[2]);
+    // Placeholder test triangle draw disabled - we render only loaded models now.
 
     // Draw current model if any
     if (g_model_loaded && g_current_model.mesh.count > 0)
@@ -342,21 +357,21 @@ void rasterizer_render(SDL_Surface *surface)
 
         int w = surface->w;
         int h = surface->h;
-    mat4 model = mat4_identity();
+        mat4 model = mat4_identity();
         // Ensure camera autofit has been computed for the model
         if (!g_cam_autofit_done)
             camera_autofit_model();
 
-    // Build view matrix from camera state
-    // Camera transform will be computed from globals set by rasterizer_adjust_camera/auto-fit
-    // compute camera position from spherical coordinates
-    float camx = g_cam_center[0] + g_cam_distance * cosf(g_cam_pitch) * sinf(g_cam_yaw);
-    float camy = g_cam_center[1] + g_cam_distance * sinf(g_cam_pitch);
-    float camz = g_cam_center[2] + g_cam_distance * cosf(g_cam_pitch) * cosf(g_cam_yaw);
-    float eye[3] = { camx, camy, camz };
-    float center[3] = { g_cam_center[0], g_cam_center[1], g_cam_center[2] };
-    float upv[3] = { 0.0f, 1.0f, 0.0f };
-    mat4 view = mat4_lookat(eye, center, upv);
+        // Build view matrix from camera state
+        // Camera transform will be computed from globals set by rasterizer_adjust_camera/auto-fit
+        // compute camera position from spherical coordinates
+        float camx = g_cam_center[0] + g_cam_distance * cosf(g_cam_pitch) * sinf(g_cam_yaw);
+        float camy = g_cam_center[1] + g_cam_distance * sinf(g_cam_pitch);
+        float camz = g_cam_center[2] + g_cam_distance * cosf(g_cam_pitch) * cosf(g_cam_yaw);
+        float eye[3] = {camx, camy, camz};
+        float center[3] = {g_cam_center[0], g_cam_center[1], g_cam_center[2]};
+        float upv[3] = {0.0f, 1.0f, 0.0f};
+        mat4 view = mat4_lookat(eye, center, upv);
         float aspect = (float)w / (float)h;
         mat4 proj = mat4_perspective(45.0f * (3.14159265f / 180.0f), aspect, 0.1f, 100.0f);
         mat4 mv = mat4_mul(&view, &model);
@@ -372,22 +387,29 @@ void rasterizer_render(SDL_Surface *surface)
                 int ni = t.array[k * 2 + 1] - 1;
                 if (pi < 0 || pi >= g_current_model.vertex_positions.count)
                 {
-                    v[k].x = 0; v[k].y = 0; v[k].z = 1;
-                    v[k].nx = 0; v[k].ny = 0; v[k].nz = 1;
+                    v[k].x = 0;
+                    v[k].y = 0;
+                    v[k].z = 1;
+                    v[k].nx = 0;
+                    v[k].ny = 0;
+                    v[k].nz = 1;
                     continue;
                 }
                 float *pos = g_current_model.vertex_positions.array[pi].array;
                 float *nrm = (ni >= 0 && ni < g_current_model.vertex_normals.count) ? g_current_model.vertex_normals.array[ni].array : pos;
                 float cx, cy, cz, cw;
                 transform_point(&mvp, pos[0], pos[1], pos[2], &cx, &cy, &cz, &cw);
-                if (cw == 0.0f) cw = 1e-6f;
+                if (cw == 0.0f)
+                    cw = 1e-6f;
                 float ndc_x = cx / cw;
                 float ndc_y = cy / cw;
                 float ndc_z = cz / cw;
                 v[k].x = (ndc_x * 0.5f + 0.5f) * (w - 1);
                 v[k].y = (1.0f - (ndc_y * 0.5f + 0.5f)) * (h - 1);
                 v[k].z = (ndc_z * 0.5f + 0.5f);
-                v[k].nx = nrm[0]; v[k].ny = nrm[1]; v[k].nz = nrm[2];
+                v[k].nx = nrm[0];
+                v[k].ny = nrm[1];
+                v[k].nz = nrm[2];
             }
             draw_filled_triangle(surface, &v[0], &v[1], &v[2]);
         }
@@ -406,35 +428,57 @@ static mat4 mat4_lookat(const float eye[3], const float center[3], const float u
     float fy = center[1] - eye[1];
     float fz = center[2] - eye[2];
     // normalize f
-    float flen = sqrtf(fx*fx + fy*fy + fz*fz);
-    if (flen == 0.0f) flen = 1.0f;
-    fx /= flen; fy /= flen; fz /= flen;
+    float flen = sqrtf(fx * fx + fy * fy + fz * fz);
+    if (flen == 0.0f)
+        flen = 1.0f;
+    fx /= flen;
+    fy /= flen;
+    fz /= flen;
 
     // up normalized
     float ux = up[0], uy = up[1], uz = up[2];
-    float ulen = sqrtf(ux*ux + uy*uy + uz*uz);
-    if (ulen == 0.0f) ulen = 1.0f;
-    ux /= ulen; uy /= ulen; uz /= ulen;
+    float ulen = sqrtf(ux * ux + uy * uy + uz * uz);
+    if (ulen == 0.0f)
+        ulen = 1.0f;
+    ux /= ulen;
+    uy /= ulen;
+    uz /= ulen;
 
     // s = f x up
     float sx = fy * uz - fz * uy;
     float sy = fz * ux - fx * uz;
     float sz = fx * uy - fy * ux;
-    float slen = sqrtf(sx*sx + sy*sy + sz*sz);
-    if (slen == 0.0f) slen = 1.0f;
-    sx /= slen; sy /= slen; sz /= slen;
+    float slen = sqrtf(sx * sx + sy * sy + sz * sz);
+    if (slen == 0.0f)
+        slen = 1.0f;
+    sx /= slen;
+    sy /= slen;
+    sz /= slen;
 
     // u' = s x f
     float ux2 = sy * fz - sz * fy;
     float uy2 = sz * fx - sx * fz;
     float uz2 = sx * fy - sy * fx;
 
-    mat4 m; memset(&m, 0, sizeof(m));
+    mat4 m;
+    memset(&m, 0, sizeof(m));
     // first row
-    m.m[0][0] = sx; m.m[0][1] = ux2; m.m[0][2] = -fx; m.m[0][3] = 0.0f;
-    m.m[1][0] = sy; m.m[1][1] = uy2; m.m[1][2] = -fy; m.m[1][3] = 0.0f;
-    m.m[2][0] = sz; m.m[2][1] = uz2; m.m[2][2] = -fz; m.m[2][3] = 0.0f;
-    m.m[3][0] = 0.0f; m.m[3][1] = 0.0f; m.m[3][2] = 0.0f; m.m[3][3] = 1.0f;
+    m.m[0][0] = sx;
+    m.m[0][1] = ux2;
+    m.m[0][2] = -fx;
+    m.m[0][3] = 0.0f;
+    m.m[1][0] = sy;
+    m.m[1][1] = uy2;
+    m.m[1][2] = -fy;
+    m.m[1][3] = 0.0f;
+    m.m[2][0] = sz;
+    m.m[2][1] = uz2;
+    m.m[2][2] = -fz;
+    m.m[2][3] = 0.0f;
+    m.m[3][0] = 0.0f;
+    m.m[3][1] = 0.0f;
+    m.m[3][2] = 0.0f;
+    m.m[3][3] = 1.0f;
 
     // translate
     mat4 t = mat4_translate(-eye[0], -eye[1], -eye[2]);
@@ -452,9 +496,18 @@ static void camera_autofit_model(void)
     for (int i = 0; i < g_current_model.vertex_positions.count; ++i)
     {
         float *p = g_current_model.vertex_positions.array[i].array;
-        if (p[0] < minx) minx = p[0]; if (p[0] > maxx) maxx = p[0];
-        if (p[1] < miny) miny = p[1]; if (p[1] > maxy) maxy = p[1];
-        if (p[2] < minz) minz = p[2]; if (p[2] > maxz) maxz = p[2];
+        if (p[0] < minx)
+            minx = p[0];
+        if (p[0] > maxx)
+            maxx = p[0];
+        if (p[1] < miny)
+            miny = p[1];
+        if (p[1] > maxy)
+            maxy = p[1];
+        if (p[2] < minz)
+            minz = p[2];
+        if (p[2] > maxz)
+            maxz = p[2];
     }
     // center
     g_cam_center[0] = (minx + maxx) * 0.5f;
@@ -465,8 +518,9 @@ static void camera_autofit_model(void)
     float rx = (maxx - minx) * 0.5f;
     float ry = (maxy - miny) * 0.5f;
     float rz = (maxz - minz) * 0.5f;
-    float radius = sqrtf(rx*rx + ry*ry + rz*rz);
-    if (radius <= 0.0f) radius = 1.0f;
+    float radius = sqrtf(rx * rx + ry * ry + rz * rz);
+    if (radius <= 0.0f)
+        radius = 1.0f;
 
     // Fit camera distance using vertical FOV 45deg and horizontal aspect will be handled in render
     float fov = 45.0f * (3.14159265f / 180.0f);
@@ -489,11 +543,14 @@ void rasterizer_adjust_camera(float delta_yaw, float delta_pitch, float delta_zo
     g_cam_pitch += delta_pitch;
     // clamp pitch to avoid flipping
     const float max_pitch = 1.4f; // ~80 degrees
-    if (g_cam_pitch > max_pitch) g_cam_pitch = max_pitch;
-    if (g_cam_pitch < -max_pitch) g_cam_pitch = -max_pitch;
+    if (g_cam_pitch > max_pitch)
+        g_cam_pitch = max_pitch;
+    if (g_cam_pitch < -max_pitch)
+        g_cam_pitch = -max_pitch;
     // zoom
     g_cam_distance += delta_zoom;
-    if (g_cam_distance < 0.01f) g_cam_distance = 0.01f;
+    if (g_cam_distance < 0.01f)
+        g_cam_distance = 0.01f;
     // mark autofit as done/overridden
     g_cam_autofit_done = 1;
 }
