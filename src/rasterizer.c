@@ -295,7 +295,7 @@ SDL_Surface *g_current_surface = NULL;
 // Camera state (spherical coordinates around center)
 static float g_cam_yaw = 0.0f;      // around Y axis
 static float g_cam_pitch = 0.0f;    // up/down
-static float g_cam_distance = 3.0f; // distance from center
+static float g_cam_distance = 6.0f; // distance from center (moved further back)
 static float g_cam_center[3] = {0.0f, 0.0f, 0.0f};
 
 // Whether the auto-fit has been computed for the current model
@@ -568,8 +568,8 @@ static void camera_autofit_model(void)
     scale *= 0.9f; // padding
     g_model_scale = scale;
 
-    // Bring the camera to a reasonable distance if it's too close/far
-    if (g_cam_distance < 1.0f) g_cam_distance = 3.0f;
+    // Ensure camera is at least a reasonable distance (moved further back)
+    if (g_cam_distance < 1.0f) g_cam_distance = 6.0f;
 
     // reset orientation
     g_cam_yaw = 0.0f;
