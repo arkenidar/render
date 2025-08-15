@@ -2,6 +2,8 @@
 
 This project is a C99 application using SDL3 (no OpenGL) that implements a CPU-based software rasterizer with z-buffer, 3D transformations (rotation, translation), triangulated indexed mesh rendering, greyscale output, and normal-based Gouraud shading.
 
+![first screen share](docs/screens/Screenshot_20250815_152649.png)
+
 ## Features
 
 - CPU software rasterizer (no OpenGL)
