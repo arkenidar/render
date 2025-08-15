@@ -2,36 +2,30 @@
 	"version": "2.0.0",
 	"tasks": [
 		{
-			"label": "Build Render",
+			"label": "CMake Build Render",
 			"type": "shell",
-			"command": "make",
-			"args": [],
+			"command": "cmake -S . -B build && cmake --build build",
 			"group": "build",
 			"problemMatcher": [
 				"$gcc"
 			],
-			"detail": "Build the render executable using Makefile"
+			"presentation": {
+				"reveal": "always",
+				"panel": "shared"
+			}
 		},
 		{
-			"label": "Debug Render (gdb)",
+			"label": "Make Build Render",
 			"type": "shell",
-			"command": "gdb",
-			"args": [
-				"--args",
-				"./render"
-			],
-			"isBackground": false,
-			"problemMatcher": [],
-			"group": "build"
-		},
-		{
-			"label": "CMake Build Render",
-			"type": "shell",
-			"command": "cmake -S . -B build && cmake --build build",
+			"command": "make",
+			"group": "build",
 			"problemMatcher": [
 				"$gcc"
 			],
-			"group": "build"
+			"presentation": {
+				"reveal": "always",
+				"panel": "shared"
+			}
 		}
 	]
 }
