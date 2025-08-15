@@ -60,6 +60,24 @@ static mat4 mat4_perspective(float fovy_rad, float aspect, float znear, float zf
     return r;
 }
 
+static mat4 mat4_scale(float sx, float sy, float sz)
+{
+    mat4 r; memset(&r, 0, sizeof(r));
+    r.m[0][0] = sx; r.m[1][1] = sy; r.m[2][2] = sz; r.m[3][3] = 1.0f;
+    return r;
+}
+
+static mat4 mat4_rotate_y(float a)
+{
+    float c = cosf(a), s = sinf(a);
+    mat4 r; memset(&r, 0, sizeof(r));
+    r.m[0][0] = c; r.m[0][2] = s;
+    r.m[1][1] = 1.0f;
+    r.m[2][0] = -s; r.m[2][2] = c;
+    r.m[3][3] = 1.0f;
+    return r;
+}
+
 // Transform a 3D point (x,y,z) by a 4x4 matrix, producing clip-space (x,y,z,w)
 static void transform_point(const mat4 *m, float x, float y, float z, float *outx, float *outy, float *outz, float *outw)
 {
@@ -283,6 +301,12 @@ static float g_cam_center[3] = {0.0f, 0.0f, 0.0f};
 // Whether the auto-fit has been computed for the current model
 static int g_cam_autofit_done = 0;
 
+// Model scale and animation
+static float g_model_scale = 1.0f;
+static float g_model_angle = 0.0f;
+static const float g_model_spin_speed = 0.8f; // radians per second
+static Uint32 g_last_ticks = 0;
+
 static void free_model(model *m)
 {
     if (!m)
@@ -357,7 +381,22 @@ void rasterizer_render(SDL_Surface *surface)
 
         int w = surface->w;
         int h = surface->h;
-        mat4 model = mat4_identity();
+    // advance animation time
+    Uint32 now = SDL_GetTicks();
+    if (g_last_ticks == 0) g_last_ticks = now;
+    float dt = (now - g_last_ticks) / 1000.0f;
+    if (dt < 0) dt = 0;
+    g_last_ticks = now;
+    g_model_angle += g_model_spin_speed * dt;
+
+    // model matrix: translate(-center) * scale * rotateY(angle) * translate(center)
+    mat4 t0 = mat4_translate(-g_cam_center[0], -g_cam_center[1], -g_cam_center[2]);
+    mat4 s = mat4_scale(g_model_scale, g_model_scale, g_model_scale);
+    mat4 r = mat4_rotate_y(g_model_angle);
+    mat4 t1 = mat4_translate(g_cam_center[0], g_cam_center[1], g_cam_center[2]);
+    mat4 model = mat4_mul(&t1, &r);
+    model = mat4_mul(&model, &s);
+    model = mat4_mul(&model, &t0);
         // Ensure camera autofit has been computed for the model
         if (!g_cam_autofit_done)
             camera_autofit_model();
@@ -522,13 +561,16 @@ static void camera_autofit_model(void)
     if (radius <= 0.0f)
         radius = 1.0f;
 
-    // Fit camera distance using vertical FOV 45deg and horizontal aspect will be handled in render
-    float fov = 45.0f * (3.14159265f / 180.0f);
-    // distance such that radius fits: distance = radius / sin(fov/2)
-    float dist = radius / sinf(fov * 0.5f);
-    // add some padding
-    dist *= 1.4f;
-    g_cam_distance = dist;
+    // Compute model scale so the model's radius maps to ~0.5 in model-space
+    // and add a small padding factor.
+    float scale = 0.5f / radius;
+    if (!isfinite(scale) || scale <= 0.0f) scale = 1.0f;
+    scale *= 0.9f; // padding
+    g_model_scale = scale;
+
+    // Bring the camera to a reasonable distance if it's too close/far
+    if (g_cam_distance < 1.0f) g_cam_distance = 3.0f;
+
     // reset orientation
     g_cam_yaw = 0.0f;
     g_cam_pitch = 0.0f;
