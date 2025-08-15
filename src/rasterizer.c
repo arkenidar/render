@@ -8,6 +8,60 @@
 #include <stdint.h>
 #include <string.h>
 
+// model types and OBJ loader
+#include "../mesh.h"
+#include "../parse.h"
+
+// Minimal 4x4 matrix helpers for a simple MVP pipeline
+typedef struct { float m[4][4]; } mat4;
+
+static mat4 mat4_identity()
+{
+    mat4 r; memset(&r, 0, sizeof(r));
+    for (int i = 0; i < 4; ++i) r.m[i][i] = 1.0f;
+    return r;
+}
+
+static mat4 mat4_mul(const mat4 *a, const mat4 *b)
+{
+    mat4 r; memset(&r, 0, sizeof(r));
+    for (int i = 0; i < 4; ++i)
+        for (int j = 0; j < 4; ++j)
+            for (int k = 0; k < 4; ++k)
+                r.m[i][j] += a->m[i][k] * b->m[k][j];
+    return r;
+}
+
+static mat4 mat4_translate(float x, float y, float z)
+{
+    mat4 r = mat4_identity();
+    r.m[0][3] = x; r.m[1][3] = y; r.m[2][3] = z;
+    return r;
+}
+
+static mat4 mat4_perspective(float fovy_rad, float aspect, float znear, float zfar)
+{
+    float f = 1.0f / tanf(fovy_rad * 0.5f);
+    mat4 r; memset(&r, 0, sizeof(r));
+    r.m[0][0] = f / aspect;
+    r.m[1][1] = f;
+    r.m[2][2] = (zfar + znear) / (znear - zfar);
+    r.m[2][3] = (2.0f * zfar * znear) / (znear - zfar);
+    r.m[3][2] = -1.0f;
+    return r;
+}
+
+// Transform a 3D point (x,y,z) by a 4x4 matrix, producing clip-space (x,y,z,w)
+static void transform_point(const mat4 *m, float x, float y, float z, float *outx, float *outy, float *outz, float *outw)
+{
+    float vx = x, vy = y, vz = z, vw = 1.0f;
+    float rx = m->m[0][0] * vx + m->m[0][1] * vy + m->m[0][2] * vz + m->m[0][3] * vw;
+    float ry = m->m[1][0] * vx + m->m[1][1] * vy + m->m[1][2] * vz + m->m[1][3] * vw;
+    float rz = m->m[2][0] * vx + m->m[2][1] * vy + m->m[2][2] * vz + m->m[2][3] * vw;
+    float rw = m->m[3][0] * vx + m->m[3][1] * vy + m->m[3][2] * vz + m->m[3][3] * vw;
+    *outx = rx; *outy = ry; *outz = rz; *outw = rw;
+}
+
 // Placeholder mesh data (single triangle)
 typedef struct
 {
@@ -190,6 +244,45 @@ static inline float edge_function(float x0, float y0, float x1, float y1, float 
     return (x2 - x0) * (y1 - y0) - (y2 - y0) * (x1 - x0);
 }
 
+// Model switching
+static const char *g_model_paths[] = {
+    "assets/axes.obj",
+    "assets/cube.obj",
+    "assets/head.obj",
+};
+static const int g_model_count = sizeof(g_model_paths) / sizeof(g_model_paths[0]);
+static model g_current_model = {0};
+static int g_model_loaded = 0;
+static int g_model_index = -1;
+
+// Global pointer used by compatibility shims to draw into the active surface
+SDL_Surface *g_current_surface = NULL;
+
+static void free_model(model *m)
+{
+    if (!m) return;
+    free(m->vertex_positions.array);
+    free(m->vertex_normals.array);
+    free(m->mesh.array);
+    m->vertex_positions.array = NULL; m->vertex_positions.count = 0;
+    m->vertex_normals.array = NULL; m->vertex_normals.count = 0;
+    m->mesh.array = NULL; m->mesh.count = 0;
+}
+
+void rasterizer_cycle_model(void)
+{
+    // free previous
+    if (g_model_loaded)
+    {
+        free_model(&g_current_model);
+        g_model_loaded = 0;
+    }
+    g_model_index = (g_model_index + 1) % g_model_count;
+    const char *path = g_model_paths[g_model_index];
+    g_current_model = load_model_obj(path);
+    g_model_loaded = 1;
+}
+
 // Forward declaration for triangle rasterizer
 static void draw_filled_triangle(SDL_Surface *surf, const Vertex *v0, const Vertex *v1, const Vertex *v2);
 
@@ -218,6 +311,55 @@ void rasterizer_render(SDL_Surface *surface)
 
     // Draw filled triangle with Gouraud shading
     draw_filled_triangle(surface, &vertices[0], &vertices[1], &vertices[2]);
+
+    // Draw current model if any
+    if (g_model_loaded && g_current_model.mesh.count > 0)
+    {
+        // Set current surface global for compatibility shims
+        extern SDL_Surface *g_current_surface;
+        g_current_surface = surface;
+
+        int w = surface->w;
+        int h = surface->h;
+        mat4 model = mat4_identity();
+        mat4 view = mat4_translate(0.0f, 0.0f, -3.0f);
+        float aspect = (float)w / (float)h;
+        mat4 proj = mat4_perspective(45.0f * (3.14159265f / 180.0f), aspect, 0.1f, 100.0f);
+        mat4 mv = mat4_mul(&view, &model);
+        mat4 mvp = mat4_mul(&proj, &mv);
+
+        for (int ti = 0; ti < g_current_model.mesh.count; ++ti)
+        {
+            triangle t = g_current_model.mesh.array[ti];
+            Vertex v[3];
+            for (int k = 0; k < 3; ++k)
+            {
+                int pi = t.array[k * 2 + 0] - 1;
+                int ni = t.array[k * 2 + 1] - 1;
+                if (pi < 0 || pi >= g_current_model.vertex_positions.count)
+                {
+                    v[k].x = 0; v[k].y = 0; v[k].z = 1;
+                    v[k].nx = 0; v[k].ny = 0; v[k].nz = 1;
+                    continue;
+                }
+                float *pos = g_current_model.vertex_positions.array[pi].array;
+                float *nrm = (ni >= 0 && ni < g_current_model.vertex_normals.count) ? g_current_model.vertex_normals.array[ni].array : pos;
+                float cx, cy, cz, cw;
+                transform_point(&mvp, pos[0], pos[1], pos[2], &cx, &cy, &cz, &cw);
+                if (cw == 0.0f) cw = 1e-6f;
+                float ndc_x = cx / cw;
+                float ndc_y = cy / cw;
+                float ndc_z = cz / cw;
+                v[k].x = (ndc_x * 0.5f + 0.5f) * (w - 1);
+                v[k].y = (1.0f - (ndc_y * 0.5f + 0.5f)) * (h - 1);
+                v[k].z = (ndc_z * 0.5f + 0.5f);
+                v[k].nx = nrm[0]; v[k].ny = nrm[1]; v[k].nz = nrm[2];
+            }
+            draw_filled_triangle(surface, &v[0], &v[1], &v[2]);
+        }
+
+        g_current_surface = NULL;
+    }
 
     SDL_UnlockSurface(surface);
 }

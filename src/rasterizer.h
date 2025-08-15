@@ -5,4 +5,7 @@
 
 void rasterizer_render(SDL_Surface *surface);
 
+// Cycle to the next model in the assets list (click to switch)
+void rasterizer_cycle_model(void);
+
 #endif // RASTERIZER_H

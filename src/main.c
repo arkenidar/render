@@ -45,6 +45,12 @@ int main(int argc, char *argv[])
                 if (event.key.key == SDLK_ESCAPE)
                     running = 0;
             }
+            else if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN)
+            {
+                // left click cycles models
+                if (event.button.button == SDL_BUTTON_LEFT)
+                    rasterizer_cycle_model();
+            }
         }
         // Call rasterizer render function (to be implemented)
         rasterizer_render(surface);
