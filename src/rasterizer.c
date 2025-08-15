@@ -356,10 +356,18 @@ void rasterizer_render(SDL_Surface *surface)
         // (previously the code fell back to drawing 3 lines here — that path is disabled)
     }
 
-    // Clear to black manually (avoid SDL_FillRect to prevent potential SDL3 symbol mismatch)
+    // Clear to light gray manually (avoid SDL_FillRect to prevent potential SDL3 symbol mismatch)
     {
-        size_t total = (size_t)surface->h * (size_t)surface->pitch;
-        memset(surface->pixels, 0, total);
+        int w = surface->w;
+        int h = surface->h;
+        uint32_t bg = map_rgb_for_surface(surface, 220, 220, 220); // light gray
+        for (int y = 0; y < h; ++y)
+        {
+            for (int x = 0; x < w; ++x)
+            {
+                putpixel(surface, x, y, bg);
+            }
+        }
     }
 
     // Initialize depth buffer to far (large) values
