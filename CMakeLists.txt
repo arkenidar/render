@@ -10,4 +10,4 @@ include_directories(${SDL3_INCLUDE_DIRS})
 
 add_executable(render src/main.c src/rasterizer.c)
 
-target_link_libraries(render ${SDL3_LIBRARIES})
+target_link_libraries(render ${SDL3_LIBRARIES} m)
