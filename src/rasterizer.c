@@ -332,7 +332,7 @@ void rasterizer_cycle_model(void)
     }
     g_model_index = (g_model_index + 1) % g_model_count;
     const char *path = g_model_paths[g_model_index];
-    g_current_model = load_model_obj(path);
+    g_current_model = load_model_obj("head.obj");
     g_model_loaded = 1;
     // Automatically fit camera to the newly loaded model
     // (implemented below)
