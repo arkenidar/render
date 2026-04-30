@@ -5,7 +5,12 @@ set(CMAKE_C_STANDARD 99)
 
 option(USE_SDL3_FROM_GIT "Fetch SDL3 from git instead of using system pkg-config" OFF)
 
-if(NOT USE_SDL3_FROM_GIT)
+if(EMSCRIPTEN)
+    # Emscripten provides an SDL3 port via -sUSE_SDL=3; no install needed.
+    add_compile_options(-sUSE_SDL=3)
+    set(SDL3_LIB "")
+    message(STATUS "Using Emscripten SDL3 port (-sUSE_SDL=3).")
+elseif(NOT USE_SDL3_FROM_GIT)
     find_package(PkgConfig REQUIRED)
     pkg_check_modules(SDL3 REQUIRED IMPORTED_TARGET sdl3)
     message(STATUS "Using SDL3 from pkg-config: ${SDL3_VERSION}")
@@ -28,6 +33,18 @@ file(GLOB_RECURSE SOURCES ${CMAKE_SOURCE_DIR}/src/*.c)
 add_executable(render ${SOURCES})
 
 target_link_libraries(render PRIVATE m ${SDL3_LIB})
+
+if(EMSCRIPTEN)
+    # Preload assets into Emscripten's virtual FS at /../assets so that the
+    # existing "../assets/foo.obj" relative paths in rasterizer.c resolve
+    # without source changes (CWD inside the VFS is "/").
+    target_link_options(render PRIVATE
+        -sUSE_SDL=3
+        -sALLOW_MEMORY_GROWTH=1
+        "--preload-file" "${CMAKE_SOURCE_DIR}/assets@/../assets"
+    )
+    set_target_properties(render PROPERTIES SUFFIX ".html")
+endif()
 
 if(MINGW)
     # SDL3's pkg-config flags pull in -mwindows (GUI subsystem), which on
