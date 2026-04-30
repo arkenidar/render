@@ -5,6 +5,8 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include <errno.h>
 
 #include "mesh.h"
 
@@ -119,7 +121,14 @@ model load_model_obj(const char *file_name)
   char *next;
   if (!file)
   {
-    puts("could not open file!");
+    fprintf(stderr,
+            "load_model_obj: could not open '%s' (%s)\n"
+            "  Expected an OBJ file. Asset paths are resolved relative to the\n"
+            "  current working directory; built-in models use paths like\n"
+            "  \"../assets/head.obj\", which assumes the program is launched\n"
+            "  from the 'build/' subdirectory of the repository.\n",
+            file_name ? file_name : "(null)",
+            strerror(errno));
     exit(1);
   }
   /// int face_data[6]={0}; float vector_data_NO_USE[3]={0};

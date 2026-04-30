@@ -28,3 +28,10 @@ file(GLOB_RECURSE SOURCES ${CMAKE_SOURCE_DIR}/src/*.c)
 add_executable(render ${SOURCES})
 
 target_link_libraries(render PRIVATE m ${SDL3_LIB})
+
+if(MINGW)
+    # SDL3's pkg-config flags pull in -mwindows (GUI subsystem), which on
+    # Windows detaches stdout/stderr from the launching terminal. Override
+    # with -mconsole so diagnostics like load_model_obj failures are visible.
+    target_link_options(render PRIVATE -mconsole)
+endif()
