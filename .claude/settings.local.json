@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cmake --build build)",
+      "Bash(./build/render.exe)",
+      "Bash(echo \"---exit code: $?---\")"
+    ]
+  }
+}
