@@ -680,8 +680,13 @@ static void draw_filled_triangle(SDL_Surface *surf, const Vertex *v0, const Vert
                     depth_buffer[idx] = z;
                     // Interpolate intensity
                     float intensity = alpha * i0 + beta * i1 + gamma * i2;
-                    uint8_t c = (uint8_t)(fminf(1.0f, intensity) * 255.0f);
-                    uint32_t col = map_rgb_for_surface(surf, c, c, c);
+                    float lit = fminf(1.0f, intensity);
+                    const float ambient = 0.15f;
+                    float shade = ambient + (1.0f - ambient) * lit;
+                    uint8_t cr = (uint8_t)(shade * 1.00f * 255.0f);
+                    uint8_t cg = (uint8_t)(shade * 0.50f * 255.0f);
+                    uint8_t cb = (uint8_t)(shade * 0.10f * 255.0f);
+                    uint32_t col = map_rgb_for_surface(surf, cr, cg, cb);
                     putpixel(surf, x, y, col);
                 }
             }
